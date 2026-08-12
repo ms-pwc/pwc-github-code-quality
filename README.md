@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 # GitHub Code Quality Showcase - SonarQube Branch
 
 This is the **SonarQube branch** of the pwc-github-code-quality repository. Instead of using GitHub-native quality controls, this branch uses **SonarQube** as the centralized code quality and security analysis platform.
@@ -151,3 +152,17 @@ For a self-hosted GitHub environment, set these as repository or organization se
 2. Customize quality profiles and gates in the SonarQube UI or in scanner arguments used by the workflow/scripts.
 3. Integrate into your CI/CD pipeline with proper credentials.
 4. Roll out to other repositories using the same pattern.
+
+## Quality command center
+
+Open [docs/sonarqube-dashboard.html](docs/sonarqube-dashboard.html) in a browser for the interactive SonarQube-style dashboard. It includes:
+
+- portfolio health, quality-gate, lines of code, coverage, and reliability metrics
+- bugs, vulnerabilities, security hotspots, code smells, and technical debt totals
+- 30-day quality trend visualization
+- severity filters for critical, major, and minor issues
+- issue detail drawer with assignment feedback
+- security hotspot review table
+- CSV export for triaged findings
+
+The dashboard is a self-contained prototype and does not require a build step or external dependencies. Replace the sample data in the page script with SonarQube API responses when wiring it to a live instance.
