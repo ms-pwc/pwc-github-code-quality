@@ -1,0 +1,65 @@
+name: Build and SonarQube Scan
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  build-and-analyze:
+    name: Build and analyze with SonarQube
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install SonarQube Scanner for MSBuild
+        run: dotnet tool install --global dotnet-sonarscanner
+
+      - name: Restore dependencies
+        run: dotnet restore Pwc.GitHubCodeQuality.slnx
+
+      - name: Start SonarQube analysis
+        env:
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL || 'http://localhost:9000' }}
+          SONAR_LOGIN: ${{ secrets.SONAR_LOGIN }}
+        run: |
+          dotnet sonarscanner begin /k:"pwc-github-code-quality" /n:"PWC GitHub Code Quality" /d:sonar.host.url="${SONAR_HOST_URL}" /d:sonar.login="${SONAR_LOGIN}" /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml"
+
+      - name: Build
+        run: dotnet build Pwc.GitHubCodeQuality.slnx --configuration Release --no-restore
+
+      - name: Verify formatting
+        run: dotnet format Pwc.GitHubCodeQuality.slnx --verify-no-changes --verbosity minimal
+
+      - name: Run quality gate tests
+        run: dotnet run --project tests/QualityDemo.Tests/QualityDemo.Tests.csproj --configuration Release --no-build
+
+      - name: End SonarQube analysis
+        env:
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL || 'http://localhost:9000' }}
+          SONAR_LOGIN: ${{ secrets.SONAR_LOGIN }}
+        run: dotnet sonarscanner end /d:sonar.login="${SONAR_LOGIN}"
+        if: always()
+
+      - name: SonarQube Quality Gate Status
+        run: |
+          echo "SonarQube analysis completed. Check the SonarQube dashboard for detailed results."
+          echo "Dashboard: http://localhost:9000 (for local SonarQube)"

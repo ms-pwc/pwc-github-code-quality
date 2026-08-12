@@ -1,0 +1,3 @@
+# On this sonarqube branch, code analysis is performed by SonarQube
+# CodeQL is not used
+# See ../workflows/build-and-sonarqube-scan.yml for SonarQube scanning workflow
