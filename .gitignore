@@ -9,3 +9,5 @@ coverage/
 *.nupkg
 *.snupkg
 *.sarif
+.tools/
+.sonarqube/

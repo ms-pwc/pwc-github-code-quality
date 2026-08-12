@@ -4,31 +4,24 @@ Welcome to the **sonarqube** branch! This branch demonstrates how to use SonarQu
 
 ## What you'll need
 
-- **Docker Desktop** (Windows, macOS) or **Docker + Docker Compose** (Linux)
-  - Download: https://www.docker.com/products/docker-desktop/
-  - On Linux: `sudo apt-get install docker-compose` (Ubuntu/Debian)
 - **.NET 10 SDK** (or later) for building and scanning
   - Download: https://dotnet.microsoft.com/download
 - **GitHub** account (optional, for pushing and running workflows)
 
+Docker is optional. The preferred local demo uses portable SonarQube files under `.tools`, so you do not need to install Docker, PostgreSQL, or Java system-wide.
+
 ## 5-minute setup
 
-### Step 1: Start local SonarQube
+### Step 1: Start local SonarQube without Docker
 
 Navigate to the repository and run:
 
 **Windows (PowerShell):**
 ```powershell
-.\scripts\setup-local-sonarqube.ps1
+.\scripts\start-portable-sonarqube.ps1
 ```
 
-**macOS / Linux (Bash):**
-```bash
-chmod +x scripts/setup-local-sonarqube.sh
-./scripts/setup-local-sonarqube.sh
-```
-
-The script will start PostgreSQL and SonarQube containers. SonarQube will be ready at `http://localhost:9000` in about 60 seconds.
+The script downloads portable Java and SonarQube into `.tools`, then starts SonarQube locally. SonarQube will be ready at `http://localhost:9000` in about 1-2 minutes.
 
 ### Step 2: Login and generate a token
 
@@ -42,13 +35,7 @@ The script will start PostgreSQL and SonarQube containers. SonarQube will be rea
 **Windows (PowerShell):**
 ```powershell
 $env:SONAR_LOGIN = "your-token-here"
-.\scripts\run-sonarqube-scan.ps1
-```
-
-**macOS / Linux (Bash):**
-```bash
-export SONAR_LOGIN="your-token-here"
-./scripts/run-sonarqube-scan.sh
+.\scripts\run-portable-sonarqube-scan.ps1
 ```
 
 ### Step 4: View results
@@ -74,8 +61,10 @@ Open http://localhost:9000 and find the "pwc-github-code-quality" project to see
 
 ## Key files
 
+- **scripts/start-portable-sonarqube.ps1** – Starts local SonarQube without Docker
+- **scripts/stop-portable-sonarqube.ps1** – Stops local portable SonarQube
+- **scripts/run-portable-sonarqube-scan.ps1** – Runs a local scan without global scanner install
 - **docker-compose.yml** – Starts PostgreSQL + SonarQube containers
-- **sonar-project.properties** – SonarQube project configuration
 - **.github/workflows/build-and-sonarqube-scan.yml** – GitHub Actions workflow for CI/CD
 - **scripts/setup-local-sonarqube.ps1** – PowerShell setup script
 - **scripts/run-sonarqube-scan.ps1** – PowerShell scan script
@@ -95,7 +84,13 @@ Read these in order for a complete understanding:
 
 ## Common tasks
 
-### Stop SonarQube
+### Stop portable SonarQube
+
+```powershell
+.\scripts\stop-portable-sonarqube.ps1
+```
+
+### Stop Docker-based SonarQube
 
 ```bash
 docker-compose stop
@@ -124,9 +119,9 @@ dotnet run --project tests/QualityDemo.Tests/QualityDemo.Tests.csproj --configur
 ### Troubleshooting
 
 **SonarQube not starting?**
-- Ensure Docker is running: `docker ps`
-- Check logs: `docker-compose logs sonarqube`
-- Port 9000 in use? Change port in `docker-compose.yml` and try again
+- If using portable setup, wait 1-2 minutes and open `http://localhost:9000`
+- Check whether port 9000 is already in use: `Test-NetConnection localhost -Port 9000`
+- If using Docker setup, ensure Docker is running: `docker ps`
 
 **Authentication failed?**
 - Verify token copied correctly (no spaces)

@@ -89,7 +89,7 @@ After scan completes, refresh http://localhost:9000
 
 ### Docker & Local Setup
 - **docker-compose.yml** – Starts PostgreSQL + SonarQube containers
-- **sonar-project.properties** – SonarQube configuration for the .NET project
+- **scripts/run-portable-sonarqube-scan.ps1** – SonarQube configuration for the local .NET scan
 
 ### CI/CD Workflow
 - **.github/workflows/build-and-sonarqube-scan.yml** – GitHub Actions workflow that builds, tests, and scans with SonarQube
@@ -279,7 +279,6 @@ docker-compose down
 pwc-github-code-quality/
 ├── QUICK_START.md                              ← Start here!
 ├── docker-compose.yml                          ← Local SonarQube setup
-├── sonar-project.properties                    ← SonarQube config
 ├── .github/
 │   └── workflows/
 │       └── build-and-sonarqube-scan.yml       ← CI/CD workflow

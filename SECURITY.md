@@ -55,7 +55,7 @@ If a security issue is found:
 
 ## SonarQube configuration for security
 
-This repository is configured in `sonar-project.properties` with:
+This repository is configured through SonarScanner for .NET arguments with:
 
 - `sonar.language=cs` – Analyzes C# code.
 - Security rules for OWASP, CWE, and banking standards.

@@ -54,7 +54,7 @@ Store this token securely. You will use it to authenticate the SonarQube Scanner
 Projects are created automatically on the first scan, but you can also create them manually:
 
 1. Go to **Projects** > **Create Project**.
-2. Enter project name and key (must match `sonar.projectKey` in `sonar-project.properties`).
+2. Enter project name and key (must match the `/k:` project key used by `dotnet sonarscanner begin`).
 3. Click **Create Project**.
 
 ## Running SonarQube Scanner locally
@@ -139,9 +139,9 @@ A quality gate is a set of conditions that must pass for the project to be consi
 
 The quality gate will be evaluated after each scan. If it fails, the workflow can fail the build (if configured).
 
-## SonarQube project properties
+## SonarQube scanner properties
 
-Edit `sonar-project.properties` to customize:
+For .NET projects, configure SonarQube through `dotnet sonarscanner begin` arguments instead of `sonar-project.properties`:
 
 - **sonar.projectKey** – Unique project identifier.
 - **sonar.projectName** – Display name in SonarQube UI.
