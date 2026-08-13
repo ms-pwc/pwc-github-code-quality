@@ -1,0 +1,45 @@
+# GitHub Code Quality demo: build, format, and test gate.
+# This is the GitHub-native equivalent of the "build" half of the SonarQube
+# workflow (build-and-sonarqube-scan.yml) but without the third-party
+# scanner steps — CodeQL (codeql.yml) covers security/quality analysis,
+# and this workflow covers compilation, style, and test correctness.
+name: Quality Gate (Build, Format, Test)
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    name: Build, format check, and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore Pwc.GitHubCodeQuality.slnx
+
+      - name: Build
+        run: dotnet build Pwc.GitHubCodeQuality.slnx --configuration Release --no-restore
+
+      - name: Verify formatting
+        run: dotnet format Pwc.GitHubCodeQuality.slnx --verify-no-changes --verbosity minimal
+
+      - name: Run tests
+        run: dotnet run --project tests/QualityDemo.Tests/QualityDemo.Tests.csproj --configuration Release --no-build

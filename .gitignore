@@ -1,0 +1,11 @@
+bin/
+obj/
+.vs/
+.vscode/.ropeproject/
+TestResults/
+coverage/
+*.user
+*.suo
+*.nupkg
+*.snupkg
+*.sarif

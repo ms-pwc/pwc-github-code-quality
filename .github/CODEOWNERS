@@ -1,0 +1,5 @@
+# Replace this placeholder team with the owning GitHub team before enforcing CODEOWNERS.
+# CODEOWNERS is part of the GitHub-native quality gate: combined with branch
+# protection rules it requires an approval from the listed owners before a
+# pull request can merge, standing in for SonarQube's manual gate policies.
+* @your-org/code-quality-owners

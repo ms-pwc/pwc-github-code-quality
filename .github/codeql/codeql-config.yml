@@ -1,0 +1,14 @@
+# Custom CodeQL configuration for the GitHub Code Quality demo (main branch).
+# Keeps analysis scope aligned with the SonarQube exclusions used on the
+# sonarqube branch (sonar.exclusions) so the two approaches scan the same code.
+name: "pwc-github-code-quality codeql config"
+
+paths-ignore:
+  - '**/bin/**'
+  - '**/obj/**'
+  - '**/*.g.cs'
+  - 'docs/**'
+
+paths:
+  - 'src'
+  - 'tests'
