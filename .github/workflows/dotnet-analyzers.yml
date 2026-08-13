@@ -65,10 +65,16 @@ jobs:
             -p:SarifOutputDir="${{ github.workspace }}/sarif" \
             -p:TreatWarningsAsErrors=false
 
+      # Code scanning rejects a SARIF file containing multiple runs under the
+      # same category, so the per-project files are merged into a single run.
+      - name: Merge per-project SARIF files
+        shell: pwsh
+        run: ./scripts/Merge-AnalyzerSarif.ps1 -InputDirectory sarif -OutputPath dotnet-analyzers.sarif
+
       - name: Upload SARIF to code scanning
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: sarif
+          sarif_file: dotnet-analyzers.sarif
           category: dotnet-analyzers
 
       # Keeps the raw SARIF downloadable from the run summary, which is useful
@@ -77,4 +83,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: dotnet-analyzers-sarif
-          path: sarif/
+          path: dotnet-analyzers.sarif
