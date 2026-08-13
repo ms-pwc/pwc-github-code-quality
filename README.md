@@ -9,10 +9,10 @@ instead, so the two branches can be compared directly.
 
 ## Start here
 
-Full configuration, step-by-step demo instructions, expected findings, and an
-honest comparison (including gaps) against the SonarQube approach:
-
-- [docs/github-code-quality-configuration-readme.md](docs/github-code-quality-configuration-readme.md)
+- [docs/github-code-quality-demo-script.md](docs/github-code-quality-demo-script.md) —
+	step-by-step walkthrough for presenting this to stakeholders
+- [docs/github-code-quality-configuration-readme.md](docs/github-code-quality-configuration-readme.md) —
+	full configuration, real scan results, and an honest gap analysis vs SonarQube
 
 ## What's configured on this branch
 
@@ -41,7 +41,8 @@ honest comparison (including gaps) against the SonarQube approach:
 | --- | --- |
 | `Quality Gate (Build, Format, Test)` | success — build ok, formatting clean, 10/10 tests passed |
 | `CodeQL Analysis` | success — 164 rules, **1 alert** (`cs/path-combine`) |
-| `.NET Analyzers` | **8 findings** (MD5, SHA1, insecure RNG x2, CA2000 x2, CA1822 x2) |
+| `.NET Analyzers (SARIF to Code Scanning)` | success — **8 alerts** (MD5, SHA1, insecure RNG x2, CA2000 x2, CA1822 x2) |
+| Code scanning total | **9 open alerts** from both tools in one Security tab |
 | `Dependabot` | opened update PRs automatically (checkout v4→v7, setup-dotnet v4→v6, codeql-action v3→v4) |
 
 **Key insight:** CodeQL alone found almost nothing on these deliberately
