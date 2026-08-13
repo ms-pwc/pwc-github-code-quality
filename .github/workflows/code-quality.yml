@@ -129,7 +129,7 @@ jobs:
           category: dotnet-analyzers
 
       - name: Upload SARIF artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dotnet-analyzers-sarif
           path: dotnet-analyzers.sarif
