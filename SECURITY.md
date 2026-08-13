@@ -6,22 +6,22 @@ Report suspected vulnerabilities through GitHub private vulnerability reporting 
 
 ## Security controls used by this repository
 
-This repository (`main` branch) uses **GitHub-native code quality and security tooling** instead of a third-party server such as SonarQube. See [docs/github-code-quality-configuration-readme.md](docs/github-code-quality-configuration-readme.md) for full configuration details and a feature-by-feature comparison with the `sonarqube` branch.
+This repository (`main` branch) demonstrates **GitHub-native code quality and security tooling** as the upgrade path from the SonarQube baseline. See the [client demonstration](docs/01-SonarQube-to-GitHub-Native-Upgrade-Demonstration.docx) for evidence and the [setup and migration runbook](docs/02-GitHub-Native-Code-Quality-Setup-and-Migration-Runbook.docx) for exact configuration and governance steps.
 
 ### GitHub-native security features
 
-- **CodeQL code scanning** (`.github/workflows/codeql.yml`) – Analyzes C# code for security vulnerabilities and quality issues (SQL/command injection, weak cryptography, insecure deserialization, etc.) using the `security-and-quality` query pack. Results appear under **Security > Code scanning alerts**.
+- **CodeQL code scanning** (`.github/workflows/code-quality.yml`) – The consolidated workflow analyzes C# code with the `security-and-quality` query pack and uploads Roslyn SARIF findings. Results appear under **Security > Code scanning alerts**.
 - **Dependabot alerts + updates** (`.github/dependabot.yml`) – Detects vulnerable/outdated NuGet and GitHub Actions dependencies and opens pull requests to update them. Alerts appear under **Security > Dependabot alerts**.
 - **Secret scanning** – Detects committed secrets/credentials (enable from **Settings > Code security > Secret scanning**). Alerts appear under **Security > Secret scanning alerts**.
 - **Severity levels** – CodeQL alerts are rated Critical, High, Medium, Low, or Warning/Note; Dependabot alerts use CVSS-derived severities.
-- **Branch protection quality gate** – Required status checks (`quality-gate.yml`, `codeql.yml`) and required CODEOWNERS review enforce the merge policy below (**Settings > Branches > Branch protection rules**).
+- **Target branch quality gate** – Configure an active GitHub ruleset to require the quality, CodeQL, analyzer, and CODEOWNERS checks. The demonstration document distinguishes this target control from the repository's currently verified settings.
 
-### Merge policy
+### Target merge policy
 
 Pull requests must:
 
-1. Pass the `Quality Gate (Build, Format, Test)` workflow.
-2. Pass the `CodeQL Analysis` workflow with no new Critical/High severity alerts.
+1. Pass the `Build, format, and test` job in the `GitHub Native Code Quality` workflow.
+2. Pass the `CodeQL (C#)` and `Roslyn analyzers to code scanning` jobs with no unacceptable new alerts.
 3. Have zero open Dependabot alerts introduced by the change.
 4. Receive CODEOWNERS approval for affected areas.
 
@@ -57,8 +57,8 @@ If a security issue is found:
 
 This repository is configured through:
 
-- `.github/workflows/codeql.yml` – CodeQL initialization, build, and analysis for `csharp` using the `security-and-quality` query suite.
+- `.github/workflows/code-quality.yml` – One workflow containing the quality gate, CodeQL, and Roslyn SARIF jobs.
 - `.github/codeql/codeql-config.yml` – Path filters so only `src` and `tests` are analyzed.
 - `.github/dependabot.yml` – Weekly NuGet and GitHub Actions dependency checks.
 
-For details and a comparison against the SonarQube-based approach, see [docs/github-code-quality-configuration-readme.md](docs/github-code-quality-configuration-readme.md).
+For details, see the [client demonstration](docs/01-SonarQube-to-GitHub-Native-Upgrade-Demonstration.docx) and [setup and migration runbook](docs/02-GitHub-Native-Code-Quality-Setup-and-Migration-Runbook.docx).

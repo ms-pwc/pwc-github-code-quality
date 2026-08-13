@@ -13,7 +13,7 @@
          reachable untrusted-input source, so it stays quiet on a library with no
          entry points. Roslyn analyzers match insecure API usage syntactically,
          which is what SonarQube's rule engine also does. Results are exported as
-         SARIF by .github/workflows/dotnet-analyzers.yml and uploaded to the
+         SARIF by .github/workflows/code-quality.yml and uploaded to the
          GitHub Security > Code scanning tab. -->
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
     <AnalysisMode>All</AnalysisMode>

@@ -8,8 +8,8 @@
     Passing `-p:SarifOutputDir=<dir>` instead lets MSBuild expand
     $(MSBuildProjectName) per project, producing one SARIF file per project.
 
-    The directory is then uploaded to GitHub code scanning by
-    .github/workflows/dotnet-analyzers.yml.
+    The directory is then uploaded to GitHub code scanning by the Roslyn job in
+    .github/workflows/code-quality.yml.
   -->
   <PropertyGroup Condition="'$(SarifOutputDir)' != ''">
     <ErrorLog>$(SarifOutputDir)/$(MSBuildProjectName).sarif,version=2.1</ErrorLog>
