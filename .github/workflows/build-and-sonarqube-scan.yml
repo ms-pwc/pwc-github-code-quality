@@ -1,65 +1,88 @@
-name: Build and SonarQube Scan
+# SonarQube baseline used by the client demonstration.
+#
+# Required repository secrets:
+#   SONAR_HOST_URL - a SonarQube URL reachable from the GitHub-hosted runner
+#   SONAR_TOKEN    - a project analysis token
+#
+# A developer's http://localhost:9000 is intentionally not used as a fallback:
+# localhost on a GitHub-hosted runner is not the developer workstation.
+name: SonarQube Code Quality
 
 on:
   push:
     branches:
-      - main
+      - sonarqube
   pull_request:
     branches:
-      - main
+      - sonarqube
   workflow_dispatch:
 
 permissions:
   contents: read
-  pull-requests: write
+
+concurrency:
+  group: sonarqube-quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build-and-analyze:
-    name: Build and analyze with SonarQube
+  sonarqube:
+    name: Build, test, and analyze with SonarQube
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
 
-      - name: Install SonarQube Scanner for MSBuild
-        run: dotnet tool install --global dotnet-sonarscanner
+      - name: Install analysis tools
+        run: |
+          dotnet tool install --global dotnet-sonarscanner
+          dotnet tool install --global dotnet-coverage
 
       - name: Restore dependencies
         run: dotnet restore Pwc.GitHubCodeQuality.slnx
 
+      # Run this before SonarScanner injects the Sonar analyzer targets. Once
+      # analysis starts, Sonar diagnostics are intentionally emitted as build
+      # warnings and can make `dotnet format --verify-no-changes` return nonzero.
+      - name: Verify formatting
+        run: dotnet format Pwc.GitHubCodeQuality.slnx --verify-no-changes --verbosity minimal
+
       - name: Start SonarQube analysis
         env:
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL || 'http://localhost:9000' }}
-          SONAR_LOGIN: ${{ secrets.SONAR_LOGIN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          dotnet sonarscanner begin /k:"pwc-github-code-quality" /n:"PWC GitHub Code Quality" /d:sonar.host.url="${SONAR_HOST_URL}" /d:sonar.login="${SONAR_LOGIN}" /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml"
+          dotnet sonarscanner begin \
+            /k:"pwc-github-code-quality" \
+            /n:"PWC GitHub Code Quality" \
+            /d:sonar.host.url="${SONAR_HOST_URL}" \
+            /d:sonar.token="${SONAR_TOKEN}" \
+            /d:sonar.cs.vscoveragexml.reportsPaths="TestResults/coverage.xml" \
+            /d:sonar.qualitygate.wait=true \
+            /d:sonar.qualitygate.timeout=300 \
+            /d:sonar.scanner.scanAll=false \
+            /d:sonar.exclusions="**/bin/**,**/obj/**,docs/**,.github/**"
 
       - name: Build
         run: dotnet build Pwc.GitHubCodeQuality.slnx --configuration Release --no-restore
 
-      - name: Verify formatting
-        run: dotnet format Pwc.GitHubCodeQuality.slnx --verify-no-changes --verbosity minimal
-
-      - name: Run quality gate tests
-        run: dotnet run --project tests/QualityDemo.Tests/QualityDemo.Tests.csproj --configuration Release --no-build
-
-      - name: End SonarQube analysis
-        env:
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL || 'http://localhost:9000' }}
-          SONAR_LOGIN: ${{ secrets.SONAR_LOGIN }}
-        run: dotnet sonarscanner end /d:sonar.login="${SONAR_LOGIN}"
-        if: always()
-
-      - name: SonarQube Quality Gate Status
+      - name: Run tests and collect coverage
         run: |
-          echo "SonarQube analysis completed. Check the SonarQube dashboard for detailed results."
-          echo "Dashboard: http://localhost:9000 (for local SonarQube)"
+          mkdir -p TestResults
+          dotnet-coverage collect \
+            "dotnet run --project tests/QualityDemo.Tests/QualityDemo.Tests.csproj --configuration Release --no-build" \
+            -f xml \
+            -o TestResults/coverage.xml
+
+      - name: Publish analysis and wait for quality gate
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: dotnet sonarscanner end /d:sonar.token="${SONAR_TOKEN}"
