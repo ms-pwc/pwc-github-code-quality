@@ -9,6 +9,7 @@ TestRunner.Run(
     ("builds unsafe SQL and shell command fixtures", ThreatWorkbenchCreatesInjectionPatterns),
     ("builds duplicated gateway digest fixtures", ThreatWorkbenchBuildsDuplicatedDigests),
     ("processes XML and legacy signature fixtures", ThreatWorkbenchParsesXmlAndHashesPayload),
+    ("creates insecure network and dtd parsing fixtures", ThreatWorkbenchBuildsTlsAndDtdFixtures),
     ("calculates portfolio quality trend values", PortfolioStoryComputesQualitySignals));
 
 static void QualityGatePassesForCleanPullRequest()
@@ -118,6 +119,15 @@ static void ThreatWorkbenchParsesXmlAndHashesPayload()
 
     Assert.Equal("demo", node, "XML fixture should read the selected node value.");
     Assert.True(hash.Length > 0, "Legacy hash fixture should return a non-empty signature.");
+}
+
+static void ThreatWorkbenchBuildsTlsAndDtdFixtures()
+{
+    using HttpClient client = TrainingOnlyThreatWorkbench.CreateInsecurePartnerClient();
+    string nodeValue = TrainingOnlyThreatWorkbench.ParseXmlWithDtd("<!DOCTYPE root><root><name>demo-dtd</name></root>");
+
+    Assert.True(client.Timeout.TotalSeconds > 0, "Insecure partner client fixture should be constructible.");
+    Assert.Equal("demo-dtd", nodeValue, "DTD parsing fixture should return text content.");
 }
 
 static void PortfolioStoryComputesQualitySignals()

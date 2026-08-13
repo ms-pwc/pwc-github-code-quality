@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
 using System.Xml;
@@ -137,6 +138,38 @@ public static class TrainingOnlyThreatWorkbench
         document.LoadXml(xmlPayload);
         XmlNode? node = document.SelectSingleNode(xpath);
         return node?.InnerText ?? string.Empty;
+    }
+
+    public static HttpClient CreateInsecurePartnerClient()
+    {
+        HttpClientHandler handler = new()
+        {
+            // DEMO ONLY: this must trigger TLS validation findings.
+            ServerCertificateCustomValidationCallback = (_, _, _, _) => true,
+        };
+
+        return new HttpClient(handler);
+    }
+
+    public static string ParseXmlWithDtd(string xmlPayload)
+    {
+        XmlReaderSettings settings = new()
+        {
+            DtdProcessing = DtdProcessing.Parse,
+            XmlResolver = new XmlUrlResolver(),
+        };
+
+        using StringReader stringReader = new(xmlPayload);
+        using XmlReader reader = XmlReader.Create(stringReader, settings);
+        while (reader.Read())
+        {
+            if (reader.NodeType == XmlNodeType.Text)
+            {
+                return reader.Value;
+            }
+        }
+
+        return string.Empty;
     }
 
     public static int RankExposureScore()
