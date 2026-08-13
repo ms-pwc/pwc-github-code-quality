@@ -17,10 +17,15 @@ It mirrors the structure of [docs/sonarqube-configuration-readme.md](../docs/son
 | File | Purpose |
 | --- | --- |
 | `.github/workflows/codeql.yml` | Runs CodeQL static analysis (security + quality queries) for C#. Equivalent to the SonarQube scanner step. |
+| `.github/workflows/dotnet-analyzers.yml` | Runs the full .NET (Roslyn) analyzer rule set and uploads the results as SARIF to the same Code scanning tab. Provides the *syntactic* rule coverage CodeQL alone does not give (see Section 4). |
 | `.github/workflows/quality-gate.yml` | Restores, builds, checks formatting (`dotnet format`), and runs tests. Equivalent to the build/test half of `build-and-sonarqube-scan.yml`. |
 
-Both workflows trigger on `push`/`pull_request` to `main` and `workflow_dispatch`.
+All workflows trigger on `push`/`pull_request` to `main` and `workflow_dispatch`.
 `codeql.yml` also runs on a weekly schedule so alerts refresh even without new commits.
+
+### Roslyn analyzer configuration
+- `src/QualityDemo/QualityDemo.csproj` – enables `EnableNETAnalyzers` with `AnalysisMode=All` (the full rule set, comparable to a SonarQube quality profile). `WarningsNotAsErrors` lists the rules the training fixtures intentionally violate so they are *reported as alerts* without breaking the build.
+- `Directory.Build.props` – maps `-p:SarifOutputDir=<dir>` to a per-project `ErrorLog` path so each project emits its own SARIF file (a single shared path would be overwritten by the last project built).
 
 ### CodeQL configuration
 - File: `.github/codeql/codeql-config.yml`
@@ -141,26 +146,88 @@ SonarQube's quality gate + branch protection combination.
 
 ---
 
-## 4. Expected findings on this codebase
+## 4. Actual results observed (run on 2026-08-13)
 
-Because the training fixtures are shared with the `sonarqube` branch, CodeQL
-is expected to flag the same categories of issues SonarQube reports, using
-its own rule IDs:
+These are **real results** from the workflows running against
+`https://github.com/ms-pwc/pwc-github-code-quality`, not predictions.
 
-| Fixture | Pattern | Expected CodeQL finding |
+### Workflow run outcomes
+
+| Workflow | Result |
+| --- | --- |
+| `Quality Gate (Build, Format, Test)` | success (30s) |
+| `CodeQL Analysis` | success (1m23s) — 164 rules executed |
+| `Dependabot Updates` (nuget + github-actions) | success — automatically opened update PRs (e.g. *Bump actions/checkout from 4 to 7*, *Bump actions/setup-dotnet from 4 to 6*, *Bump github/codeql-action from 3 to 4*) |
+
+### The important finding: CodeQL alone reported only 1 alert
+
+CodeQL ran **164 rules** and produced **1 result**:
+
+```
+note  cs/path-combine  src/QualityDemo/TrainingOnlyThreatWorkbench.cs:291
+```
+
+This is not a misconfiguration — it is how CodeQL works, and it is the single
+most important thing to explain during the demo:
+
+> **CodeQL is a data-flow (taint-tracking) engine.** Its security queries only
+> raise an alert when untrusted input can be proven to reach a dangerous sink.
+> This repository is a **class library with no entry points** (no HTTP
+> controller, no `Main` reading arguments), so there is no *source* of
+> untrusted data. The SQL injection, command injection, and path injection
+> queries therefore find no complete flow path and stay silent — correctly.
+>
+> **SonarQube also applies syntactic rules** that flag insecure API usage on
+> sight, regardless of reachability. That is why SonarQube shows many findings
+> on the same code while CodeQL shows almost none.
+
+### How the gap is closed natively: .NET Roslyn analyzers
+
+The GitHub-native answer is **not** to add SonarQube back — it is to add the
+.NET Roslyn analyzers, which are syntactic like SonarQube's rule engine, and
+publish their SARIF output into the same Code scanning tab
+(`.github/workflows/dotnet-analyzers.yml`).
+
+With `AnalysisMode=All` enabled, the local build produces **8 analyzer
+findings** across the fixtures:
+
+| Rule | Meaning | Location |
 | --- | --- | --- |
-| `TrainingOnlyInsecureExamples.CreateWeakDemoFingerprint` | `MD5.HashData` | Use of a broken/weak cryptographic hash function |
-| `TrainingOnlyInsecureExamples.CreateUnsafeHttpClient` | `ServerCertificateCustomValidationCallback = (...) => true` | Disabled certificate validation |
-| `TrainingOnlyInsecureExamples.DemonstrateUntrustedInputSinks` | `File.ReadAllText(userSuppliedPath)`, `Process.Start("cmd.exe", ...)` | Path injection / OS command injection |
-| `TrainingOnlyThreatWorkbench.BuildUnsafeSql` / `BuildUnsafeAuditSql` | string-concatenated SQL | SQL injection (data flow from untrusted input) |
-| `TrainingOnlyThreatWorkbench.BuildUnsafeShellCommand` | interpolated shell command | Command injection |
-| `TrainingOnlyThreatWorkbench.ComputeLegacySignature` | `SHA1.HashData` | Use of a broken/weak cryptographic hash function |
-| `TrainingOnlyThreatWorkbench.BuildPredictableToken` | `System.Random` for a token | Insecure randomness |
-| `TrainingOnlyThreatWorkbench.LoadXmlAndReadNode` / `ParseXmlWithDtd` | `XmlUrlResolver` + DTD processing enabled | XML External Entity (XXE) injection |
-| `TrainingOnlyThreatWorkbench.CreateInsecurePartnerClient` | disabled TLS validation | Disabled certificate validation |
-| `LegacyApiKey` / `LegacyDbPassword` / `DemoPassword` constants | hard-coded literals | Hard-coded credentials (flagged by secret scanning if the pattern matches a known provider format; generic literals may not be caught — see Section 5) |
+| `CA5351` | Broken cryptographic algorithm (MD5) | `TrainingOnlyInsecureExamples.cs:28` |
+| `CA5350` | Weak cryptographic algorithm (SHA1) | `TrainingOnlyThreatWorkbench.cs:120` |
+| `CA5394` | Insecure random number generator | `TrainingOnlyInsecureExamples.cs:28` |
+| `CA5394` | Insecure random number generator | `TrainingOnlyThreatWorkbench.cs:128` |
+| `CA2000` | Disposable object not disposed | `TrainingOnlyInsecureExamples.cs:38` |
+| `CA2000` | Disposable object not disposed | `TrainingOnlyThreatWorkbench.cs:146` |
+| `CA1822` | Member can be marked static (maintainability) | `QualityGateEvaluator.cs:5` |
+| `CA1822` | Member can be marked static (maintainability) | `RepositoryRiskClassifier.cs:12` |
 
-> Exact rule names/IDs depend on the CodeQL query pack version used at scan time; view the live alert text in **Security > Code scanning alerts** after the workflow runs.
+Note that `CA5351`/`CA5350`/`CA3075` were previously hidden by
+`#pragma warning disable` in the fixture files; those suppressions were removed
+on this branch so the rules actually fire. This mirrors a real-world lesson:
+**inline suppressions hide findings from Roslyn analyzers, and a scanner can
+only report what it is allowed to see.**
+
+### Combined coverage
+
+| Fixture | Pattern | Caught by |
+| --- | --- | --- |
+| `CreateWeakDemoFingerprint` | `MD5.HashData` | Roslyn `CA5351` |
+| `ComputeLegacySignature` | `SHA1.HashData` | Roslyn `CA5350` |
+| `BuildPredictableToken` / `CreateWeakDemoFingerprint` | `System.Random` for tokens | Roslyn `CA5394` |
+| `CreateUnsafeHttpClient` / `CreateInsecurePartnerClient` | disabled TLS validation | **Neither** — see gap note below |
+| `BuildUnsafeSql` / `BuildUnsafeAuditSql` | concatenated SQL | **Neither** (no reachable untrusted source) |
+| `BuildUnsafeShellCommand` | interpolated shell command | **Neither** (no reachable untrusted source) |
+| `LoadXmlAndReadNode` / `ParseXmlWithDtd` | `XmlUrlResolver` + DTD parsing | **Neither** in this shape (`CA3075` did not fire on the property-assignment form) |
+| `DemonstrateUntrustedInputSinks` | `Path`/file handling | CodeQL `cs/path-combine` |
+| `LegacyApiKey` / `LegacyDbPassword` / `DemoPassword` | hard-coded literals | Secret scanning did not flag them (generic literals, not provider token formats) |
+
+> **Be honest about this in the demo.** Even with CodeQL *plus* full Roslyn
+> analyzers, several patterns SonarQube reports were not reported here. The
+> injection findings would appear if the code were reachable from a real entry
+> point (add an ASP.NET controller or a `Main` that reads `args`, and CodeQL's
+> taint queries light up). For a library-only repository, GitHub-native tooling
+> is measurably quieter than SonarQube.
 
 ---
 
@@ -168,6 +235,7 @@ its own rule IDs:
 
 | Capability | SonarQube | GitHub-native (CodeQL/Dependabot) | Gap |
 | --- | --- | --- | --- |
+| Syntactic insecure-API rules on unreachable/library code | Yes — flags on sight | CodeQL stays silent without a reachable untrusted source; needs Roslyn analyzers as a complement (now configured) | **Real gap in CodeQL alone**, largely closed by `dotnet-analyzers.yml`, but still not 1:1 (see Section 4 table). |
 | Unified quality dashboard (bugs, smells, vulnerabilities, coverage, duplication, tech debt in one screen) | Yes | Partial — alerts are split across Code scanning / Dependabot / Secret scanning tabs; Security Overview rolls up counts but not code metrics | **Yes, real gap.** No single "project health" screen with trend graphs. |
 | Code duplication detection (%) | Yes, built-in | No built-in equivalent | **Gap.** CodeQL does not compute a duplication percentage. Would need a separate tool (e.g., a duplication linter) if this metric is required. |
 | Maintainability rating / Technical debt ratio (time-to-fix estimates) | Yes | No | **Gap.** GitHub does not estimate remediation time or assign A–E maintainability ratings. |
@@ -185,12 +253,15 @@ its own rule IDs:
 - Dependabot auto-remediation (opens the fix PR directly) vs. SonarQube only flagging the dependency.
 - No licensing/hosting cost for the analysis engine itself on qualifying repos.
 
-**Conclusion for the demo:** GitHub-native tooling (CodeQL + Dependabot + Secret
-scanning + branch protection) reproduces the *security scanning* and *merge-gate*
-value of SonarQube well, and does it with less operational overhead. It does
+**Conclusion for the demo:** GitHub-native tooling (CodeQL + Roslyn analyzers +
+Dependabot + Secret scanning + branch protection) reproduces the *security
+scanning* and *merge-gate* value of SonarQube with far less operational
+overhead — no server, no database, no token, no scanner install. It does
 **not** reproduce SonarQube's unified metrics dashboard, duplication %,
-maintainability rating, or technical debt estimate — call this out explicitly
-when presenting results so stakeholders have accurate expectations.
+maintainability rating, or technical debt estimate, and on a library-only
+codebase like this one it reports fewer findings than SonarQube because CodeQL
+requires reachable untrusted input. Call this out explicitly when presenting
+results so stakeholders have accurate expectations.
 
 ---
 
@@ -198,13 +269,15 @@ when presenting results so stakeholders have accurate expectations.
 
 | Aspect | `sonarqube` branch | `main` branch |
 | --- | --- | --- |
-| Quality platform | SonarQube (self-hosted via Docker) | GitHub-native (CodeQL, Dependabot, Secret scanning) |
-| Setup effort | Docker Compose + token generation + scanner config | Add workflow/config files only |
-| Where results live | `http://localhost:9000` project dashboard | GitHub **Security** tab + **Actions** tab |
+| Quality platform | SonarQube (self-hosted via Docker/portable, `localhost:9000`) | GitHub-native (CodeQL, Roslyn analyzers, Dependabot, Secret scanning) |
+| Setup effort | Server + database + token generation + scanner config | Add workflow/config files only — no server, no token |
+| Where results live | `http://localhost:9000` project dashboard | GitHub **Security > Code scanning** + **Actions** tab |
 | Dashboard/metrics | Bugs, vulnerabilities, code smells, duplications, coverage, tech debt, quality gate | Code scanning alerts, Dependabot alerts, Secret scanning alerts, Security Overview counts |
 | Merge gate | SonarQube quality gate + branch protection | Required status checks + CODEOWNERS + branch protection |
 | Data location | Your infrastructure (or SonarCloud) | GitHub.com (or GHES if self-hosted) |
+| Findings on this codebase | Many (syntactic rules fire regardless of reachability) | 1 CodeQL alert + 8 Roslyn analyzer findings |
 | Duplication / tech debt metrics | Yes | Not available natively |
+| Automatic dependency fix PRs | No (flags only) | Yes (Dependabot opens the PR) |
 
 ---
 
@@ -216,3 +289,11 @@ when presenting results so stakeholders have accurate expectations.
 - If duplication %, maintainability rating, or coverage trend graphs are hard
   requirements, keep SonarQube (or add a supplementary Action such as
   Codecov/Codacy) alongside CodeQL rather than removing SonarQube entirely.
+- The biggest practical lesson from this run: **CodeQL's silence is not a clean
+  bill of health on a library.** Always pair CodeQL with the language's own
+  analyzers (Roslyn here) and validate on code that has real entry points.
+- Two deprecation warnings appeared in the run and should be addressed:
+  Node.js 20 actions are being forced onto Node 24, and CodeQL Action v3 is
+  deprecated in December 2026. Dependabot has already opened the
+  `github/codeql-action` v3 → v4 pull request automatically — a good live
+  demonstration of Dependabot's auto-remediation value.

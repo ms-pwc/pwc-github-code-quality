@@ -1,0 +1,18 @@
+<Project>
+
+  <!--
+    GitHub Code Quality demo: per-project SARIF output for Roslyn analyzers.
+
+    A solution-wide `-p:ErrorLog=<file>` makes every project write to the SAME
+    path, so the last project built silently overwrites the earlier results.
+    Passing `-p:SarifOutputDir=<dir>` instead lets MSBuild expand
+    $(MSBuildProjectName) per project, producing one SARIF file per project.
+
+    The directory is then uploaded to GitHub code scanning by
+    .github/workflows/dotnet-analyzers.yml.
+  -->
+  <PropertyGroup Condition="'$(SarifOutputDir)' != ''">
+    <ErrorLog>$(SarifOutputDir)/$(MSBuildProjectName).sarif,version=2.1</ErrorLog>
+  </PropertyGroup>
+
+</Project>

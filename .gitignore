@@ -9,3 +9,4 @@ coverage/
 *.nupkg
 *.snupkg
 *.sarif
+sarif/

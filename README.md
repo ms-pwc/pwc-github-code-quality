@@ -19,9 +19,11 @@ honest comparison (including gaps) against the SonarQube approach:
 | File | Purpose |
 | --- | --- |
 | [.github/workflows/codeql.yml](.github/workflows/codeql.yml) | CodeQL security + quality analysis for C# |
+| [.github/workflows/dotnet-analyzers.yml](.github/workflows/dotnet-analyzers.yml) | .NET (Roslyn) analyzers exported as SARIF to code scanning |
 | [.github/workflows/quality-gate.yml](.github/workflows/quality-gate.yml) | Build, format check, and test |
 | [.github/codeql/codeql-config.yml](.github/codeql/codeql-config.yml) | CodeQL path scope (matches SonarQube's exclusions) |
 | [.github/dependabot.yml](.github/dependabot.yml) | Weekly NuGet + GitHub Actions dependency updates |
+| [Directory.Build.props](Directory.Build.props) | Per-project SARIF output for analyzer results |
 | [.github/CODEOWNERS](.github/CODEOWNERS) | Required reviewers for merge gating |
 | [.github/pull_request_template.md](.github/pull_request_template.md) | GitHub Code Quality PR checklist |
 | [SECURITY.md](SECURITY.md) | Security controls and merge policy |
@@ -33,14 +35,18 @@ honest comparison (including gaps) against the SonarQube approach:
 - [src/QualityDemo/PortfolioQualityStory.cs](src/QualityDemo/PortfolioQualityStory.cs)
 - [tests/QualityDemo.Tests/Program.cs](tests/QualityDemo.Tests/Program.cs)
 
-## Results (last local validation)
+## Results (verified on GitHub, 2026-08-13)
 
-```
-dotnet build   -> succeeded
-dotnet format  -> no violations
-dotnet test    -> 10/10 passed
-```
+| Check | Result |
+| --- | --- |
+| `Quality Gate (Build, Format, Test)` | success — build ok, formatting clean, 10/10 tests passed |
+| `CodeQL Analysis` | success — 164 rules, **1 alert** (`cs/path-combine`) |
+| `.NET Analyzers` | **8 findings** (MD5, SHA1, insecure RNG x2, CA2000 x2, CA1822 x2) |
+| `Dependabot` | opened update PRs automatically (checkout v4→v7, setup-dotnet v4→v6, codeql-action v3→v4) |
 
-CodeQL and Dependabot results are only visible after pushing to GitHub and
-letting Actions run (see the docs above) — there is no local dashboard
-equivalent to SonarQube's `http://localhost:9000`.
+**Key insight:** CodeQL alone found almost nothing on these deliberately
+insecure fixtures because it is a data-flow engine and this repository is a
+library with no entry points — there is no untrusted input source for its taint
+queries to follow. Roslyn analyzers (syntactic, like SonarQube's rule engine)
+close most of that gap. The full explanation and the remaining gaps are in the
+documentation linked above.

@@ -115,9 +115,9 @@ public static class TrainingOnlyThreatWorkbench
 
     public static string ComputeLegacySignature(string payload)
     {
-#pragma warning disable CA5350 // Intentional scanner training fixture.
+        // Intentionally NOT suppressed: CA5350 (weak SHA1) must surface as a
+        // code scanning alert for the GitHub Code Quality demonstration.
         byte[] hash = SHA1.HashData(Encoding.UTF8.GetBytes(payload));
-#pragma warning restore CA5350
         return Convert.ToHexString(hash);
     }
 
@@ -132,9 +132,10 @@ public static class TrainingOnlyThreatWorkbench
     public static string LoadXmlAndReadNode(string xmlPayload, string xpath)
     {
         XmlDocument document = new();
-#pragma warning disable CA3075 // Intentional scanner training fixture.
+
+        // Intentionally NOT suppressed: CA3075 (XXE / insecure DTD processing)
+        // must surface as a code scanning alert for the demonstration.
         document.XmlResolver = new XmlUrlResolver();
-#pragma warning restore CA3075
         document.LoadXml(xmlPayload);
         XmlNode? node = document.SelectSingleNode(xpath);
         return node?.InnerText ?? string.Empty;

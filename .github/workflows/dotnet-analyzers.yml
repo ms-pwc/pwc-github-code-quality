@@ -1,0 +1,80 @@
+# GitHub Code Quality demo: .NET (Roslyn) analyzer results -> Code scanning.
+#
+# WHY THIS EXISTS
+# CodeQL is a data-flow (taint tracking) engine: its security queries only fire
+# when untrusted input can actually reach a dangerous sink. This repository is a
+# class library with no HTTP/CLI entry points, so CodeQL correctly stays quiet
+# on the intentionally insecure fixtures (it reported 1 alert out of 164 rules).
+#
+# SonarQube, by contrast, also applies *syntactic* rules that flag insecure API
+# usage regardless of reachability (weak hash, insecure RNG, XXE, etc.).
+#
+# The GitHub-native way to get that same syntactic coverage is the .NET Roslyn
+# analyzers (AnalysisMode=All in QualityDemo.csproj). This workflow exports them
+# as SARIF and uploads the file to GitHub code scanning, so Roslyn findings show
+# up in the SAME Security > Code scanning tab as CodeQL alerts.
+#
+# Net result: CodeQL (deep data-flow) + Roslyn analyzers (broad syntactic rules)
+# together provide coverage comparable to SonarQube's rule engine.
+name: .NET Analyzers (SARIF to Code Scanning)
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write # required to upload the SARIF file
+
+jobs:
+  analyzers:
+    name: Run .NET analyzers and publish SARIF
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore Pwc.GitHubCodeQuality.slnx
+
+      # ErrorLog makes the C# compiler write every analyzer diagnostic to a
+      # SARIF 2.1 file. SarifOutputDir is consumed by Directory.Build.props,
+      # which expands it to one SARIF file per project (a single shared path
+      # would be overwritten by the last project built).
+      # Warnings are intentionally not treated as errors here so the demo
+      # fixtures are reported rather than failing the build.
+      - name: Build with analyzers and emit SARIF
+        run: |
+          mkdir -p sarif
+          dotnet build Pwc.GitHubCodeQuality.slnx \
+            --configuration Release \
+            --no-restore \
+            --no-incremental \
+            -p:SarifOutputDir="${{ github.workspace }}/sarif" \
+            -p:TreatWarningsAsErrors=false
+
+      - name: Upload SARIF to code scanning
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: sarif
+          category: dotnet-analyzers
+
+      # Keeps the raw SARIF downloadable from the run summary, which is useful
+      # when demonstrating the results without opening the Security tab.
+      - name: Upload SARIF as build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dotnet-analyzers-sarif
+          path: sarif/

@@ -22,9 +22,10 @@ public static class TrainingOnlyInsecureExamples
 
         // DEMO ONLY: Random is predictable and must not generate security tokens.
         Random predictableRandom = new();
-#pragma warning disable CA5351 // Intentional scanner training fixture.
+
+        // Intentionally NOT suppressed: CA5351 (broken MD5) must surface as a
+        // code scanning alert for the GitHub Code Quality demonstration.
         byte[] bytes = MD5.HashData(System.Text.Encoding.UTF8.GetBytes($"{input}-{predictableRandom.Next()}"));
-#pragma warning restore CA5351
 
         return Convert.ToHexString(bytes);
     }

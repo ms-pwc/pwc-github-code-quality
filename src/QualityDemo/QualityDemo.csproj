@@ -7,6 +7,22 @@
     <AnalysisLevel>latest</AnalysisLevel>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+    <!-- GitHub Code Quality demo: run the full .NET (Roslyn) analyzer rule set.
+         These analyzers complement CodeQL: CodeQL is data-flow driven and needs a
+         reachable untrusted-input source, so it stays quiet on a library with no
+         entry points. Roslyn analyzers match insecure API usage syntactically,
+         which is what SonarQube's rule engine also does. Results are exported as
+         SARIF by .github/workflows/dotnet-analyzers.yml and uploaded to the
+         GitHub Security > Code scanning tab. -->
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisMode>All</AnalysisMode>
+
+    <!-- The training fixtures in TrainingOnly*.cs intentionally violate these
+         security rules so the scanners have something to find. They must be
+         REPORTED (so they show up as code scanning alerts) but must not fail
+         the build, otherwise the demo repository would never compile. -->
+    <WarningsNotAsErrors>CA1822;CA2000;CA3075;CA5350;CA5351;CA5394;CA5359;CA5360;CA5361;CA5362;CA5363</WarningsNotAsErrors>
   </PropertyGroup>
 
 </Project>
