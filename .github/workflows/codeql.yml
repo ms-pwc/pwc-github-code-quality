@@ -51,7 +51,7 @@ jobs:
       # default security-only pack) so results are comparable to SonarQube's
       # combined bug/vulnerability/code-smell reporting.
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
           config-file: ./.github/codeql/codeql-config.yml
@@ -65,6 +65,6 @@ jobs:
           dotnet build Pwc.GitHubCodeQuality.slnx --configuration Release --no-restore
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           category: "/language:${{ matrix.language }}"
