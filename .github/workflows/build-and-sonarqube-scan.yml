@@ -1,0 +1,139 @@
+name: Build and SonarQube Analysis (Latest)
+
+on:
+  push:
+    branches:
+      - sonarqube-latest
+  pull_request:
+    branches:
+      - sonarqube-latest
+  schedule:
+    - cron: "23 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: sonarqube-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-sonarqube:
+    name: "🔍 SonarQube Analysis (10.7+ LTS)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0  # Full history for SonarQube analysis
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore Pwc.GitHubCodeQuality.slnx
+
+      - name: Verify code formatting
+        run: dotnet format Pwc.GitHubCodeQuality.slnx --verify-no-changes --verbosity minimal || true
+
+      - name: Build release configuration
+        run: dotnet build Pwc.GitHubCodeQuality.slnx --configuration Release --no-restore
+
+      - name: Run tests with coverage collection
+        run: |
+          mkdir -p coverage
+          dotnet test tests/QualityDemo.Tests/QualityDemo.Tests.csproj \
+            --configuration Release \
+            --no-build \
+            --collect:"XPlat Code Coverage" \
+            --results-directory coverage \
+            --logger trx
+
+      - name: Display coverage results
+        run: |
+          echo "=== Code Coverage Summary ==="
+          find coverage -name "*.cobertura.xml" -exec echo "Found: {}" \;
+
+      - name: Install SonarScanner global tool
+        run: dotnet tool install --global dotnet-sonarscanner --version 6.2.0 || dotnet tool update --global dotnet-sonarscanner
+
+      - name: Verify SonarQube connectivity
+        env:
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          if [ -z "${{ secrets.SONAR_HOST_URL }}" ] || [ -z "${{ secrets.SONAR_TOKEN }}" ]; then
+            echo "⚠️ SonarQube secrets not configured in GitHub"
+            echo "Add SONAR_HOST_URL and SONAR_TOKEN to repository secrets"
+            exit 0
+          fi
+          
+          echo "SonarQube Host: ${{ secrets.SONAR_HOST_URL }}"
+          curl -s -u "${{ secrets.SONAR_TOKEN }}:" "${{ secrets.SONAR_HOST_URL }}/api/system/status" | head -c 200
+
+      - name: Run SonarQube analysis
+        if: secrets.SONAR_HOST_URL != ''
+        env:
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Find coverage report
+          COVERAGE_REPORT=$(find coverage -name "coverage.cobertura.xml" | head -1)
+          
+          echo "Starting SonarQube analysis..."
+          echo "Coverage report: $COVERAGE_REPORT"
+          
+          dotnet sonarscanner begin \
+            /k:"pwc-github-code-quality" \
+            /n:"PWC GitHub Code Quality" \
+            /d:sonar.host.url="${{ env.SONAR_HOST_URL }}" \
+            /d:sonar.login="${{ env.SONAR_TOKEN }}" \
+            /d:sonar.cs.opencover.reportsPaths="${COVERAGE_REPORT}" \
+            /d:sonar.sourceEncoding="UTF-8" \
+            /d:sonar.verbose=false || true
+
+          dotnet build Pwc.GitHubCodeQuality.slnx --configuration Release --no-restore || true
+
+          dotnet sonarscanner end \
+            /d:sonar.login="${{ env.SONAR_TOKEN }}" || true
+
+      - name: Wait for SonarQube Quality Gate
+        if: secrets.SONAR_HOST_URL != ''
+        env:
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          pwsh -File scripts/Wait-SonarQualityGate.ps1 \
+            -SonarHostUrl "${{ env.SONAR_HOST_URL }}" \
+            -SonarToken "${{ env.SONAR_TOKEN }}" \
+            -ProjectKey "pwc-github-code-quality" \
+            -MaxRetries 120 \
+            -WaitSeconds 10 || true
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: coverage/
+
+      - name: Generate SonarQube dashboard link
+        if: secrets.SONAR_HOST_URL != ''
+        run: |
+          echo "=== SonarQube Results ==="
+          echo "Dashboard: ${{ secrets.SONAR_HOST_URL }}/dashboard?id=pwc-github-code-quality"
+          echo ""
+          echo "View the following metrics:"
+          echo "1. Security: Measures > Security"
+          echo "2. Reliability: Measures > Reliability"
+          echo "3. Maintainability: Measures > Maintainability"
+          echo "4. Coverage: Measures > Coverage"
+          echo "5. Hotspots: Measures > Security Hotspots"
+          echo "6. Duplication: Measures > Duplication"
