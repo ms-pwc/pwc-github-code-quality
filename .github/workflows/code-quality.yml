@@ -1,25 +1,31 @@
-# One GitHub-native code quality workflow for the client demonstration.
+# Comprehensive GitHub-native code quality workflow.
 #
-# The three jobs reproduce the pull-request protection outcomes demonstrated
-# with SonarQube on the `sonarqube` branch:
-#   1. build, formatting, and tests;
-#   2. CodeQL data-flow security and quality analysis;
-#   3. full .NET/Roslyn analysis uploaded to GitHub code scanning as SARIF.
+# Six quality components across three jobs:
+#   1. Build, formatting, tests, and coverage
+#   2. CodeQL security and quality analysis
+#   3. Roslyn .NET analyzers with SARIF
+#   4. Code duplication detection (CPD)
+#   5. CODEOWNERS hotspot review simulation
+#   6. GitHub Code Coverage integration
 name: GitHub Native Code Quality
 
 on:
   push:
     branches:
       - main
+      - github-code-quality
   pull_request:
     branches:
       - main
+      - github-code-quality
   schedule:
     - cron: "23 3 * * 1"
   workflow_dispatch:
 
 permissions:
   contents: read
+  security-events: write
+  pull-requests: read
 
 concurrency:
   group: code-quality-${{ github.workflow }}-${{ github.ref }}
@@ -27,9 +33,9 @@ concurrency:
 
 jobs:
   quality-gate:
-    name: Build, format, and test
+    name: "🏗️ Build, format, test, and coverage"
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -49,11 +55,31 @@ jobs:
       - name: Verify formatting
         run: dotnet format Pwc.GitHubCodeQuality.slnx --verify-no-changes --verbosity minimal
 
-      - name: Run quality tests
-        run: dotnet run --project tests/QualityDemo.Tests/QualityDemo.Tests.csproj --configuration Release --no-build
+      - name: Run quality tests with coverage
+        run: |
+          dotnet test tests/QualityDemo.Tests/QualityDemo.Tests.csproj \
+            --configuration Release \
+            --no-build \
+            --collect:"XPlat Code Coverage" \
+            --results-directory coverage
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: coverage/
+
+      - name: Upload coverage to GitHub
+        uses: actions/upload-code-coverage@v1
+        if: always()
+        with:
+          files: ./coverage/coverage.cobertura.xml
+          flags: csharp
+          verbose: true
 
   codeql:
-    name: CodeQL (C#)
+    name: "🔒 CodeQL security and quality analysis"
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -88,7 +114,7 @@ jobs:
           category: /language:csharp
 
   dotnet-analyzers:
-    name: Roslyn analyzers to code scanning
+    name: "⚙️ Roslyn analyzers (Security, Reliability, Maintainability)"
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -133,3 +159,79 @@ jobs:
         with:
           name: dotnet-analyzers-sarif
           path: dotnet-analyzers.sarif
+
+  duplication-check:
+    name: "📋 Code duplication detection (CPD)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Create PMD directory
+        run: mkdir -p tools
+
+      - name: Download PMD/CPD
+        run: |
+          cd tools
+          # Download PMD with CPD included
+          curl -L https://github.com/pmd/pmd/releases/download/pmd_releases%2F6.55.0/pmd-bin-6.55.0.zip -o pmd.zip
+          unzip -q pmd.zip
+          rm pmd.zip
+          echo "$(pwd)/pmd-bin-6.55.0/bin" >> $GITHUB_PATH
+
+      - name: Run CPD (Copy Paste Detector)
+        run: |
+          cpd --files src/QualityDemo \
+              --minimum-tokens 10 \
+              --language csharp \
+              --format csv > duplication-report.csv || true
+          
+          # Also generate XML report
+          cpd --files src/QualityDemo \
+              --minimum-tokens 10 \
+              --language csharp \
+              --format xml > duplication-report.xml || true
+
+      - name: Display duplication results
+        run: |
+          echo "=== Code Duplication Report ==="
+          if [ -f duplication-report.csv ]; then
+            cat duplication-report.csv
+          else
+            echo "No duplications found above minimum token threshold"
+          fi
+
+      - name: Upload duplication reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: code-duplication-reports
+          path: |
+            duplication-report.csv
+            duplication-report.xml
+
+  hotspot-review-check:
+    name: "🔐 Security hotspot review (CODEOWNERS)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Verify CODEOWNERS exists
+        run: |
+          if [ -f .github/CODEOWNERS ]; then
+            echo "✓ CODEOWNERS file found"
+            echo "=== CODEOWNERS Security Hotspots ==="
+            grep -E "TrainingOnly|Insecure" .github/CODEOWNERS || echo "No security-specific CODEOWNERS found"
+          else
+            echo "⚠ CODEOWNERS file not found - hotspot review requires CODEOWNERS configuration"
+          fi
+
+      - name: List security-sensitive files
+        run: |
+          echo "=== Security-Sensitive Files ==="
+          find src -name "*Insecure*" -o -name "*Threat*" -o -name "*Training*" | sort

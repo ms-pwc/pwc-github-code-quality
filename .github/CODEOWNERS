@@ -1,5 +1,28 @@
-# Replace this placeholder team with the owning GitHub team before enforcing CODEOWNERS.
-# CODEOWNERS is part of the GitHub-native quality gate: combined with branch
-# protection rules it requires an approval from the listed owners before a
-# pull request can merge, standing in for SonarQube's manual gate policies.
+# GitHub Code Owners and Security Hotspot Review Assignments
+# This file defines required reviewers for different areas and quality components
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# HOTSPOT REVIEW REQUIREMENT (Component 5):
+# These security-sensitive files are marked as "hotspots" requiring manual review
+# Similar to SonarQube Security Hotspots but implemented via GitHub code owners
+
+# Insecure code patterns - training examples for security scanning
+/src/QualityDemo/TrainingOnlyInsecureExamples.cs @your-org/security-team
+/src/QualityDemo/TrainingOnlyThreatWorkbench.cs @your-org/security-team
+
+# Cryptographic and risk-sensitive code
+/src/QualityDemo/QualityGateDecision.cs @your-org/security-team
+/src/QualityDemo/RepositoryRiskClassifier.cs @your-org/security-team
+/src/QualityDemo/QualityGateEvaluator.cs @your-org/security-team
+
+# Test code with security patterns and patterns
+/tests/QualityDemo.Tests/ @your-org/security-team
+
+# Configuration files
+Pwc.GitHubCodeQuality.slnx @your-org/code-quality-owners
+Directory.Build.props @your-org/code-quality-owners
+.github/workflows/ @your-org/code-quality-owners
+.github/codeql/ @your-org/security-team
+
+# All other changes
 * @your-org/code-quality-owners
